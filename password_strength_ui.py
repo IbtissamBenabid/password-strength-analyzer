@@ -10,8 +10,12 @@ import string
 import seaborn as sns
 import matplotlib.pyplot as plt
 from password_analysis import extract_features, calculate_entropy
+from password_breach_checker import PasswordBreachChecker
 from sklearn.metrics import confusion_matrix, classification_report
 import time
+
+# Initialize breach checker
+breach_checker = PasswordBreachChecker()
 
 # Set page config - must be the first Streamlit command
 st.set_page_config(
@@ -630,6 +634,49 @@ def generate_password_by_criteria(criteria):
     random.shuffle(password)
     return ''.join(password)
 
+def display_breach_check_results(breach_details):
+    """Display breach check results in the UI."""
+    st.markdown("### 🔍 Breach Check Results")
+    
+    if breach_details["error"]:
+        st.error(breach_details["message"])
+        return
+    
+    # Create a styled container for breach results
+    if breach_details["is_breached"]:
+        # Determine color based on risk level
+        color = {
+            "high": "#ff4b4b",
+            "medium": "#ffa726",
+            "low": "#ffd600"
+        }.get(breach_details["risk_level"], "#ff4b4b")
+        
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {color}, {color}80); 
+                        padding: 1.2rem; 
+                        border-radius: 12px; 
+                        border: 1px solid {color}40;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);">
+                <h3 style="color: #fcfaf9; margin: 0;">⚠️ Password Found in Data Breaches</h3>
+                <p style="color: #fcfaf9; margin: 0.5rem 0 0 0;">
+                    {breach_details["message"]}
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #66bb6a, #81c784); 
+                        padding: 1.2rem; 
+                        border-radius: 12px; 
+                        border: 1px solid #48e5c240;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);">
+                <h3 style="color: #fcfaf9; margin: 0;">✅ Password Not Found in Breaches</h3>
+                <p style="color: #fcfaf9; margin: 0.5rem 0 0 0;">
+                    {breach_details["message"]}
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
 def main():
     # Sidebar
     st.sidebar.title("Password Analyzer")
@@ -660,6 +707,13 @@ def main():
             prediction = model.predict(features_df)[0]
             probabilities = model.predict_proba(features_df)[0]
             confidence = probabilities[model.classes_.tolist().index(prediction)]
+            
+            # Check for breaches
+            with st.spinner("Checking for password breaches..."):
+                breach_details = breach_checker.get_breach_details(password)
+            
+            # Display breach check results
+            display_breach_check_results(breach_details)
             
             # Display results in three columns
             col1, col2, col3 = st.columns(3)
@@ -814,6 +868,13 @@ def main():
                             <p>Confidence: {confidence:.2%}</p>
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    # Check for breaches
+                    with st.spinner("Checking for password breaches..."):
+                        breach_details = breach_checker.get_breach_details(passwords[0])
+                    
+                    # Display breach check results
+                    display_breach_check_results(breach_details)
                     
                     # Display character distribution
                     st.plotly_chart(create_character_distribution_chart(features),
